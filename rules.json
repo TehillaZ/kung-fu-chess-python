@@ -1,0 +1,37 @@
+{
+  "K": {
+    "name": "King",
+    "max_steps": 1,
+    "straight": true,
+    "diagonal": true,
+    "is_knight": false
+  },
+  "R": {
+    "name": "Rook",
+    "max_steps": 8,
+    "straight": true,
+    "diagonal": false,
+    "is_knight": false
+  },
+  "B": {
+    "name": "Bishop",
+    "max_steps": 8,
+    "straight": false,
+    "diagonal": true,
+    "is_knight": false
+  },
+  "Q": {
+    "name": "Queen",
+    "max_steps": 8,
+    "straight": true,
+    "diagonal": true,
+    "is_knight": false
+  },
+  "N": {
+    "name": "Knight",
+    "max_steps": 2,
+    "straight": false,
+    "diagonal": false,
+    "is_knight": true
+  }
+}
