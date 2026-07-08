@@ -1,12 +1,10 @@
-import sys
-
 valid_tokens = {
         ".", 
         "wK", "wQ", "wR", "wB", "wN", "wP", 
         "bK", "bQ", "bR", "bB", "bN", "bP"
     }
     
-def validatefunc(program_input):
+def validatefunc(program_input:str):
     program_input = program_input.splitlines()
 
     board_lines = []

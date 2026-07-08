@@ -2,9 +2,9 @@ import io
 import unittest
 from contextlib import redirect_stdout
 
-from validate import validatefunc
+from validator import validatefunc
 from simulator import ChessGameSimulator
-from main import process_vpl_input
+from p_input import parse_input
 
 
 class TestValidate(unittest.TestCase):
@@ -49,14 +49,14 @@ class TestMainProcess(unittest.TestCase):
         input_data = """Board:\nwR .\n. .\nCommands:\nclick 0 0\nclick 100 0\nprint board"""
         buffer = io.StringIO()
         with redirect_stdout(buffer):
-            process_vpl_input(input_data)
+            parse_input(input_data)
         self.assertEqual(buffer.getvalue().strip(), ". wR\n. .")
 
     def test_process_vpl_input_validation_error(self):
         input_data = """Board:\nwR XY\n. .\nCommands:\nprint board"""
         buffer = io.StringIO()
         with redirect_stdout(buffer):
-            process_vpl_input(input_data)
+            parse_input(input_data)
         self.assertEqual(buffer.getvalue().strip(), "ERROR UNKNOWN_TOKEN")
 
 
