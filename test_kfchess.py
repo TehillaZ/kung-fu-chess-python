@@ -30,6 +30,7 @@ class TestChessGameSimulator(unittest.TestCase):
         sim = ChessGameSimulator("wR .\n. .")
         sim.execute_click(0, 0)    # select rook
         sim.execute_click(100, 0)  # move rook right one cell
+        sim.execute_wait(1000)
         self.assertEqual(sim.board, [[".", "wR"], [".", "."]])
 
     def test_illegal_rook_move(self):
@@ -49,18 +50,21 @@ class TestPawnMovement(unittest.TestCase):
         sim = ChessGameSimulator(". .\n. .\nwP .")
         sim.execute_click(0, 200)
         sim.execute_click(0, 100)
+        sim.execute_wait(1000)
         self.assertEqual(sim.board, [[".", "."], ["wP", "."], [".", "."]])
 
     def test_black_pawn_moves_downward(self):
         sim = ChessGameSimulator("bP .\n. .\n. .")
         sim.execute_click(0, 0)
         sim.execute_click(0, 100)
+        sim.execute_wait(1000)
         self.assertEqual(sim.board, [[".", "."], ["bP", "."], [".", "."]])
 
     def test_pawn_captures_diagonally(self):
         sim = ChessGameSimulator(". .\n. bR\nwP .")
         sim.execute_click(0, 200)
         sim.execute_click(100, 100)
+        sim.execute_wait(1000)
         self.assertEqual(sim.board, [[".", "."], [".", "wP"], [".", "."]])
 
     def test_pawn_cannot_move_two_cells(self):
@@ -76,13 +80,58 @@ class TestPawnMovement(unittest.TestCase):
         self.assertEqual(sim.board, [["bR", "."], ["wP", "."], [".", "."]])
 
 
+class TestTimedMovement(unittest.TestCase):
+    def test_piece_stays_at_origin_before_arrival(self):
+        sim = ChessGameSimulator("wR .\n. .")
+        sim.execute_click(0, 0)
+        sim.execute_click(100, 0)
+        self.assertEqual(sim.board, [["wR", "."], [".", "."]])
+
+    def test_piece_moves_after_enough_wait(self):
+        sim = ChessGameSimulator("wR .\n. .")
+        sim.execute_click(0, 0)
+        sim.execute_click(100, 0)
+        sim.execute_wait(1000)
+        self.assertEqual(sim.board, [[".", "wR"], [".", "."]])
+
+    def test_piece_stays_during_partial_wait(self):
+        sim = ChessGameSimulator("wR .\n. .")
+        sim.execute_click(0, 0)
+        sim.execute_click(100, 0)
+        sim.execute_wait(500)
+        self.assertEqual(sim.board, [["wR", "."], [".", "."]])
+
+    def test_print_board_before_arrival_shows_original_position(self):
+        sim = ChessGameSimulator("wR .\n. .")
+        sim.execute_click(0, 0)
+        sim.execute_click(100, 0)
+        buffer = io.StringIO()
+        with redirect_stdout(buffer):
+            sim.print_board()
+        self.assertEqual(buffer.getvalue().strip(), "wR .\n. .")
+
+    def test_one_cell_move_before_arrival_board_unchanged(self):
+        input_data = """Board:\nwR . .\nCommands:\nclick 50 50\nclick 150 50\nwait 500\nprint board"""
+        buffer = io.StringIO()
+        with redirect_stdout(buffer):
+            parse_input(input_data)
+        self.assertEqual(buffer.getvalue().strip(), "wR . .")
+
+    def test_two_cell_move_before_and_after_arrival(self):
+        input_data = """Board:\nwR . .\nCommands:\nclick 50 50\nclick 250 50\nwait 1000\nprint board\nwait 1000\nprint board"""
+        buffer = io.StringIO()
+        with redirect_stdout(buffer):
+            parse_input(input_data)
+        self.assertEqual(buffer.getvalue().strip(), "wR . .\n. . wR")
+
+
 class TestMainProcess(unittest.TestCase):
     def test_process_vpl_input_print_board(self):
         input_data = """Board:\nwR .\n. .\nCommands:\nclick 0 0\nclick 100 0\nprint board"""
         buffer = io.StringIO()
         with redirect_stdout(buffer):
             parse_input(input_data)
-        self.assertEqual(buffer.getvalue().strip(), ". wR\n. .")
+        self.assertEqual(buffer.getvalue().strip(), "wR .\n. .")
 
     def test_process_vpl_input_validation_error(self):
         input_data = """Board:\nwR XY\n. .\nCommands:\nprint board"""

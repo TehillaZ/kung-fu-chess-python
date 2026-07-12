@@ -1,7 +1,11 @@
 from board import Board
 from movement import MoveValidator
 from rules import RulesLoader
+
 EMPTY_CELL = "."
+MS_PER_CELL = 1000
+
+
 class ChessGameSimulator:
 
     def __init__(self, board_setup):
@@ -10,6 +14,7 @@ class ChessGameSimulator:
         self.move_validator = MoveValidator(RulesLoader())
         self.selected_pos = None
         self.clock = 0
+        self.pending_moves = []
 
     def _get_cell_coords(self, x: int, y: int):
         col = x // self._board.cell_size
@@ -19,6 +24,23 @@ class ChessGameSimulator:
             return row, col
 
         return None
+
+    def _travel_time(self, start, end):
+        start_row, start_col = start
+        end_row, end_col = end
+        distance = max(abs(end_row - start_row), abs(end_col - start_col))
+        return distance * MS_PER_CELL
+
+    def _apply_completed_moves(self):
+        still_pending = []
+
+        for move in sorted(self.pending_moves, key=lambda m: m["arrival_time"]):
+            if move["arrival_time"] <= self.clock:
+                self._board.move_piece(move["start"], move["end"])
+            else:
+                still_pending.append(move)
+
+        self.pending_moves = still_pending
 
     def execute_click(self, x: int, y: int):
         coords = self._get_cell_coords(x, y)
@@ -39,9 +61,9 @@ class ChessGameSimulator:
         target_piece = self._board.get_piece(row, col)
 
         if target_piece != EMPTY_CELL:
-           if target_piece[0] == piece[0]:
-               self.selected_pos = (row, col)
-               return
+            if target_piece[0] == piece[0]:
+                self.selected_pos = (row, col)
+                return
 
         if self.move_validator.is_legal_move(
             piece,
@@ -49,13 +71,20 @@ class ChessGameSimulator:
             (row, col),
             self._board,
         ):
-            self._board.move_piece(previous_position, (row, col))
+            self.pending_moves.append({
+                "start": previous_position,
+                "end": (row, col),
+                "arrival_time": self.clock + self._travel_time(
+                    previous_position,
+                    (row, col),
+                ),
+            })
 
         self.selected_pos = None
 
     def execute_wait(self, ms: int):
         self.clock += ms
+        self._apply_completed_moves()
 
     def print_board(self):
         self._board.print_board()
-
