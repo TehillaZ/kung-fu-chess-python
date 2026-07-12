@@ -44,6 +44,38 @@ class TestChessGameSimulator(unittest.TestCase):
         self.assertEqual(sim.clock, 250)
 
 
+class TestPawnMovement(unittest.TestCase):
+    def test_white_pawn_moves_upward(self):
+        sim = ChessGameSimulator(". .\n. .\nwP .")
+        sim.execute_click(0, 200)
+        sim.execute_click(0, 100)
+        self.assertEqual(sim.board, [[".", "."], ["wP", "."], [".", "."]])
+
+    def test_black_pawn_moves_downward(self):
+        sim = ChessGameSimulator("bP .\n. .\n. .")
+        sim.execute_click(0, 0)
+        sim.execute_click(0, 100)
+        self.assertEqual(sim.board, [[".", "."], ["bP", "."], [".", "."]])
+
+    def test_pawn_captures_diagonally(self):
+        sim = ChessGameSimulator(". .\n. bR\nwP .")
+        sim.execute_click(0, 200)
+        sim.execute_click(100, 100)
+        self.assertEqual(sim.board, [[".", "."], [".", "wP"], [".", "."]])
+
+    def test_pawn_cannot_move_two_cells(self):
+        sim = ChessGameSimulator(". .\n. .\nwP .\n. .")
+        sim.execute_click(0, 200)
+        sim.execute_click(0, 0)
+        self.assertEqual(sim.board, [[".", "."], [".", "."], ["wP", "."], [".", "."]])
+
+    def test_pawn_cannot_capture_forward(self):
+        sim = ChessGameSimulator("bR .\nwP .\n. .")
+        sim.execute_click(0, 100)
+        sim.execute_click(0, 0)
+        self.assertEqual(sim.board, [["bR", "."], ["wP", "."], [".", "."]])
+
+
 class TestMainProcess(unittest.TestCase):
     def test_process_vpl_input_print_board(self):
         input_data = """Board:\nwR .\n. .\nCommands:\nclick 0 0\nclick 100 0\nprint board"""
@@ -62,3 +94,4 @@ class TestMainProcess(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+

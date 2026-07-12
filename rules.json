@@ -33,5 +33,13 @@
     "straight": false,
     "diagonal": false,
     "is_knight": true
+  },
+  "P": {
+    "name": "Pawn",
+    "max_steps": 1,
+    "straight": false,
+    "diagonal": false,
+    "is_knight": false,
+    "is_pawn": true
   }
 }

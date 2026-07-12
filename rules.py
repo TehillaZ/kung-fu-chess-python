@@ -3,7 +3,6 @@
 import json
 import os
 
-
 class RulesLoader:
     """Loads chess movement rules from the JSON configuration file."""
 

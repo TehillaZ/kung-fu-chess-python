@@ -1,7 +1,6 @@
 from validator import validatefunc
 from simulator import ChessGameSimulator
 
-
 def parse_input(raw_input):
 
     """Parses complete execution text payload separating metadata configurations."""
