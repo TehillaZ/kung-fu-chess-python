@@ -166,6 +166,54 @@ print board"""
         )
 
 
+class TestAdvancedRealtimeInteraction(unittest.TestCase):
+    def test_enemy_collision_capture_on_arrival(self):
+        sim = ChessGameSimulator("wR bR")
+        sim.execute_click(0, 0)
+        sim.execute_click(100, 0)
+        sim.execute_wait(1000)
+        self.assertEqual(sim.board, [[".", "wR"]])
+
+    def test_invalid_premove_cancelled_when_path_blocked(self):
+        sim = ChessGameSimulator("wR . .\n. wR .")
+        sim.execute_click(0, 0)
+        sim.execute_click(200, 0)
+        sim.execute_click(100, 100)
+        sim.execute_click(100, 0)
+        sim.execute_wait(1000)
+        sim.execute_wait(1000)
+        self.assertEqual(sim.board, [["wR", "wR", "."], [".", ".", "."]])
+
+    def test_friendly_piece_landing_cancels_premove(self):
+        sim = ChessGameSimulator("wR . wR")
+        sim.execute_click(0, 0)
+        sim.execute_click(100, 0)
+        sim.execute_click(200, 0)
+        sim.execute_click(100, 0)
+        sim.execute_wait(1000)
+        self.assertEqual(sim.board, [[".", "wR", "wR"]])
+
+    def test_destination_conflict_first_arrival_wins(self):
+        sim = ChessGameSimulator("wR . wR")
+        sim.execute_click(200, 0)
+        sim.execute_click(100, 0)
+        sim.execute_click(0, 0)
+        sim.execute_click(100, 0)
+        sim.execute_wait(1000)
+        self.assertEqual(sim.board, [["wR", "wR", "."]])
+
+    def test_opposite_color_destination_collision(self):
+        sim = ChessGameSimulator("wR . bR")
+        sim.execute_click(0, 0)
+        sim.execute_click(100, 0)
+        sim.execute_click(200, 0)
+        sim.execute_click(100, 0)
+        sim.execute_wait(1000)
+        self.assertEqual(sim.board, [[".", "wR", "bR"]])
+        sim.execute_wait(1000)
+        self.assertEqual(sim.board, [[".", "wR", "bR"]])
+
+
 class TestMainProcess(unittest.TestCase):
     def test_process_vpl_input_print_board(self):
         input_data = """Board:\nwR .\n. .\nCommands:\nclick 0 0\nclick 100 0\nprint board"""
