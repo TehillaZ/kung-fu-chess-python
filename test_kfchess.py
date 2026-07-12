@@ -125,6 +125,47 @@ class TestTimedMovement(unittest.TestCase):
         self.assertEqual(buffer.getvalue().strip(), "wR . .\n. . wR")
 
 
+class TestMovingPieceRedirect(unittest.TestCase):
+    def test_cannot_redirect_piece_while_moving(self):
+        sim = ChessGameSimulator("wR . .")
+        sim.execute_click(50, 50)
+        sim.execute_click(250, 50)   # schedule 2-cell move
+        sim.execute_click(50, 50)    # select again while moving
+        sim.execute_click(150, 50)   # try to redirect to 1 cell
+        sim.execute_wait(2000)
+        self.assertEqual(sim.board, [[".", ".", "wR"]])
+
+    def test_can_move_immediately_after_arrival(self):
+        sim = ChessGameSimulator("wR . .")
+        sim.execute_click(50, 50)
+        sim.execute_click(150, 50)   # 1-cell move, arrives in 1000ms
+        sim.execute_wait(1000)
+        sim.execute_click(150, 50)
+        sim.execute_click(250, 50)   # move again immediately, no cooldown
+        sim.execute_wait(1000)
+        self.assertEqual(sim.board, [[".", ".", "wR"]])
+
+    def test_opposite_colors_do_not_move_concurrently_on_common_route(self):
+        input_data = """Board:
+wR . .
+. . .
+bR . .
+Commands:
+click 50 50
+click 250 50
+click 50 250
+click 250 250
+wait 2000
+print board"""
+        buffer = io.StringIO()
+        with redirect_stdout(buffer):
+            parse_input(input_data)
+        self.assertEqual(
+            buffer.getvalue().strip(),
+            ". . wR\n. . .\nbR . .",
+        )
+
+
 class TestMainProcess(unittest.TestCase):
     def test_process_vpl_input_print_board(self):
         input_data = """Board:\nwR .\n. .\nCommands:\nclick 0 0\nclick 100 0\nprint board"""
