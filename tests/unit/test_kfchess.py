@@ -245,6 +245,56 @@ class TestAdvancedRealtimeInteraction(unittest.TestCase):
         self.assertEqual(sim.board, [[".", "wR", "bR"]])
 
 
+class TestKnightJump(unittest.TestCase):
+    def test_knight_jump_lasts_1000ms(self):
+        sim = ChessGameSimulator("wN . .\n. . .\n. . .")
+        sim.execute_click(0, 0)
+        sim.execute_click(200, 100)
+        sim.execute_wait(500)
+        self.assertEqual(sim.board, [["wN", ".", "."], [".", ".", "."], [".", ".", "."]])
+        sim.execute_wait(500)
+        self.assertEqual(sim.board, [[".", ".", "."], [".", ".", "wN"], [".", ".", "."]])
+
+    def test_knight_stays_at_origin_during_jump(self):
+        sim = ChessGameSimulator("wN . .\n. . .\n. . .")
+        sim.execute_click(0, 0)
+        sim.execute_click(200, 100)
+        self.assertEqual(sim.board, [["wN", ".", "."], [".", ".", "."], [".", ".", "."]])
+
+    def test_knight_lands_normally_when_no_enemy_arrives(self):
+        sim = ChessGameSimulator("wN . .\n. . .\n. . .")
+        sim.execute_click(0, 0)
+        sim.execute_click(200, 100)
+        sim.execute_wait(1000)
+        self.assertEqual(sim.board, [[".", ".", "."], [".", ".", "wN"], [".", ".", "."]])
+
+    def test_airborne_knight_captures_arriving_enemy(self):
+        sim = ChessGameSimulator("wN . .\nbR . .\n. . .")
+        sim.execute_click(0, 0)
+        sim.execute_click(200, 100)
+        sim.execute_click(0, 100)
+        sim.execute_click(0, 0)
+        sim.execute_wait(1000)
+        self.assertEqual(sim.board, [["wN", ".", "."], [".", ".", "."], [".", ".", "."]])
+
+    def test_moving_knight_cannot_jump(self):
+        sim = ChessGameSimulator("wN . .\n. . .\n. . .")
+        sim.execute_click(0, 0)
+        sim.execute_click(200, 100)
+        sim.execute_click(0, 0)
+        sim.execute_click(100, 200)
+        sim.execute_wait(1000)
+        self.assertEqual(sim.board, [[".", ".", "."], [".", ".", "wN"], [".", ".", "."]])
+
+    def test_captured_piece_cannot_jump(self):
+        sim = ChessGameSimulator("wN . .\n. . .\n. . .")
+        sim.execute_click(0, 0)
+        sim.execute_click(200, 100)
+        sim._board.set_piece(0, 0, ".")
+        sim.execute_wait(1000)
+        self.assertEqual(sim.board, [[".", ".", "."], [".", ".", "."], [".", ".", "."]])
+
+
 class TestGameOver(unittest.TestCase):
     def test_capturing_enemy_king_ends_game(self):
         sim = ChessGameSimulator("wR bK")

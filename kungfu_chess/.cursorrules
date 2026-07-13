@@ -1,0 +1,273 @@
+# Kung Fu Chess — Project Rules
+
+Source: Kung Fu Chess Design Guide (course specification).
+
+## Purpose
+
+Kung Fu Chess is a real-time chess-like game. Pieces follow chess movement patterns, but moves are not instantaneous. A player selects a piece and clicks a destination; the piece travels at a fixed speed.
+
+Build with test-driven, layered design. Keep game logic independent of rendering. Use simulated time (`wait(ms)`), never real sleep in tests.
+
+---
+
+## Game Scope (Common Route)
+
+- Board is any rectangular size inferred from a textual description.
+- Pieces use chess letters: `K`, `Q`, `R`, `B`, `N`, `P`.
+- Color prefix: `w` (white), `b` (black). Example: `wK`, `bR`.
+- `.` means an empty square.
+- **Not implemented:** check, checkmate, castling, en passant, promotion.
+- A king **can** be captured.
+- Capturing the opponent king **ends the game**.
+- A piece moves only according to its movement rule.
+- Sliding pieces do not pass through blocking pieces.
+- Movement has a fixed speed (see Timing).
+- Tests use a fixed cell size in pixels.
+- UI rendering uses only the supplied drawing/image library.
+- The **logical board changes only when a moving piece arrives**.
+- **One active motion at a time** (common route). If a legal-looking move is requested while a motion is already active, `GameEngine` rejects with reason `"motion_in_progress"`. No new motion starts; `Board` remains unchanged.
+- Text integration DSL contains only: `Board`, `click`, `wait`, `print board`.
+- `print board` is the **only** integration-test assertion mechanism.
+
+### Extra Route (optional extensions — only after common route is complete)
+
+Allowed extra features (one per strong team): simultaneous movement, cooldown after movement, collision between moving pieces, cancellation when destination becomes occupied before arrival, replay file support, basic bot strategy, visual polish without changing the model.
+
+Extra features must extend the appropriate layer without reversing dependency direction or merging unrelated responsibilities.
+
+---
+
+## Piece Movement Rules
+
+Each piece type validates destinations via `PieceRules`. Rules are **stateless** — they only calculate legal destinations from board + piece; they do not capture, move, or mutate.
+
+| Piece  | Movement |
+|--------|----------|
+| Rook   | Horizontal and vertical sliding until blocked |
+| Bishop | Diagonal sliding until blocked |
+| Queen  | Rook + bishop movement |
+| Knight | L-shaped jumps, ignoring blockers |
+| King   | One square in any direction |
+| Pawn   | Simplified forward movement (see below) |
+
+### Pawn (simplified)
+
+- White pawn moves **one row upward**.
+- Black pawn moves **one row downward**.
+- Pawn captures **one diagonal step forward**.
+- **No** initial two-step move.
+- **No** en passant.
+- **No** promotion.
+
+### RuleEngine validation
+
+Given source cell and destination cell, `RuleEngine` answers: is this command legal now?
+
+Reject:
+- Moves outside the board
+- Move attempts from empty cells
+- Moving to a friendly-occupied destination
+- Destinations illegal for the piece type
+
+`MoveValidation`: `{ is_valid: bool, reason: string }`
+
+Stable rule-level reasons: `"ok"`, `"outside_board"`, `"empty_source"`, `"friendly_destination"`, `"illegal_piece_move"`.
+
+`RuleEngine` is **read-only** — it does not move pieces, remove captures, start motions, or update game state.
+
+Win condition: **king capture** (not checkmate).
+
+---
+
+## Real-Time Movement
+
+Isolated in `RealTimeArbiter`. Active motions live **outside** `Board`.
+
+### Constants
+
+- `CELL_SIZE = 100` pixels
+- `PIECE_SPEED = 100` pixels per second
+
+### Timing
+
+- Moving **1 square** takes **1000 ms**.
+- Moving **2 squares** takes **2000 ms**.
+- Moving **N squares** takes **N × 1000 ms**.
+- Diagonal movement uses **cell-step duration**, not Euclidean pixel distance.
+- Example: bishop 1 diagonal = 1000 ms; bishop 3 diagonal = 3000 ms.
+
+### Logical board update
+
+- A moving piece remains logically on its **source cell** until it arrives.
+- Before arrival: `print board` shows the old board.
+- At or after arrival: `print board` shows the updated board.
+- Renderer may draw interpolated positions; logical board updates only on arrival.
+
+### Arrival
+
+When a moving piece arrives (atomic):
+1. Remove it from the source cell.
+2. Capture the enemy at the destination (if any).
+3. Place the moving piece at the destination.
+4. If captured piece is a king → report king capture to `GameEngine` → set `game_over`.
+
+### GameEngine motion policy
+
+- Reject `request_move` when `game_over` → reason `"game_over"`.
+- Reject `request_move` when a motion is active → reason `"motion_in_progress"`.
+- `wait(ms)` delegates to `RealTimeArbiter.advance_time(ms)`; must not directly manipulate board motion state.
+
+`MoveResult`: `{ is_accepted: bool, reason: string }`
+
+---
+
+## Controller
+
+Translates clicks into game commands. **Does not** decide chess legality.
+
+- Convert pixels to cells via `BoardMapper`: `col = x // 100`, `row = y // 100`.
+- First click: select a piece (ignore empty cells).
+- Second in-board click: call `GameEngine.request_move(source, destination)`.
+- Clear selection after every second in-board click (legal or illegal).
+- No selection + outside-board click → ignore.
+- Selection active + outside-board click → cancel selection, no command.
+- **Must not** call `Board.move_piece` or `RuleEngine` directly.
+
+Click examples (`CELL_SIZE = 100`):
+- `click 50 50` → row 0, col 0
+- `click 150 50` → row 0, col 1
+- `click 50 150` → row 1, col 0
+
+---
+
+## Architecture Layers
+
+| Layer | Owns | Must NOT own |
+|-------|------|--------------|
+| **Model** (`Board`, `Position`, `Piece`, `GameState`) | Coordinates, piece identity, logical occupancy, lifecycle state | Pixels, clicks, rendering, rules, timing |
+| **PieceRules** | Movement geometry per piece type | Commands, time, animation, rendering |
+| **RuleEngine** | Read-only legality validation | Board mutation, animation, game-over |
+| **GameEngine** | Coordination: game-over guard, validation delegation, starting motions, wait, snapshots | Piece-specific logic, rendering, input parsing, DSL |
+| **RealTimeArbiter** | Active `Motion` objects, time advancement, arrival resolution, captures | Chess legality, clicks, rendering |
+| **Controller** | Click interpretation, selection state | Legality, board mutation, timing |
+| **Renderer** | Visual drawing from read-only `GameSnapshot` | Rules, board mutation, input |
+| **Text I/O** (`BoardParser`, `BoardPrinter`) | Textual setup and logical board output | Movement rules, command execution |
+| **TextTestRunner** | Script parsing, driving public command path | Movement rules, direct board mutation |
+
+Dependency direction: **Model ← Rules ← Engine ← Controller/Tests**. View depends on snapshots only. Never point dependencies from model to UI.
+
+`GameEngine` is the application-service coordinator and public command boundary.
+
+There is no `model/move.py` in the common route. Move requests are source + destination at the API boundary.
+
+---
+
+## Package Structure
+
+```
+kungfu_chess/
+  model/       position.py, piece.py, board.py, game_state.py
+  rules/       piece_rules.py, rule_engine.py, rules_loader.py, path_utils.py, rules.json
+  realtime/    motion.py, real_time_arbiter.py
+  engine/      game_engine.py
+  input/       board_mapper.py, controller.py
+  io/          board_parser.py, board_printer.py
+  view/        renderer.py, image_view.py
+  texttests/   script_parser.py, script_runner.py
+  app.py
+tests/unit/
+```
+
+Entry point: `main.py` → `p_input.py` → `kungfu_chess/texttests/script_runner.py`
+
+---
+
+## Text Integration Test DSL
+
+Commands (exactly four):
+
+```
+Board
+<textual board rows>
+click <x> <y>
+wait <milliseconds>
+print board
+<expected board rows>
+```
+
+### Board notation
+
+- One row per line, cells separated by spaces.
+- `.` = empty, `w`/`b` prefix for color, piece letter = chess notation.
+- Width/height inferred from text; all rows must have same cell count.
+
+### Assertion strategy
+
+Only `print board` + expected rows. Covers: parsing, pixel mapping, legal/illegal moves, partial/full wait, blocking, capture, king capture / game over.
+
+Selection state is tested by unit tests only (not in `print board`).
+
+### Text test flow (required)
+
+```
+Board text → BoardParser → GameEngine
+click      → Controller.click(x, y)
+wait       → GameEngine.wait(ms)
+print board → BoardPrinter.print(game_state)
+```
+
+**Forbidden:** `ScriptRunner` directly calling `Board.move_piece` (bypasses controller, engine, rules, arbiter).
+
+---
+
+## Public API Between Layers
+
+- `BoardParser.parse(text) -> Board`
+- `BoardPrinter.print(game_state | snapshot) -> text`
+- `BoardMapper.pixel_to_cell(x, y) -> Position | None`
+- `Controller.click(x, y) -> ControllerResult`
+- `GameEngine.request_move(source, destination) -> MoveResult`
+- `GameEngine.wait(ms) -> None`
+- `GameEngine.snapshot() -> GameSnapshot`
+- `RuleEngine.validate_move(board, source, destination) -> MoveValidation`
+- `RealTimeArbiter.has_active_motion() -> bool`
+- `RealTimeArbiter.start_motion(piece, source, destination) -> None`
+- `RealTimeArbiter.advance_time(ms) -> ArrivalEvents`
+
+---
+
+## Development Loop
+
+```
+Requirement → test plan → failing tests → implementation → refactor → review → commit
+```
+
+- Write unit tests for pure logic before connecting UI.
+- Use fake clocks / `wait(ms)`, never real sleep.
+- Keep rendering thin and replaceable.
+- Avoid hidden global state; small classes with clear responsibility.
+- Commit only when tests pass.
+- When using an LLM: small reviewable steps, one layer at a time, verify with tests.
+
+### Definition of done (per feature)
+
+1. Unit tests cover internal logic.
+2. At least one text integration test covers user-visible behavior via `print board`.
+3. No UI dependency in model.
+4. No real time in tests.
+5. Small, reviewable diff with clear layer ownership.
+
+---
+
+## Common Mistakes to Avoid
+
+- Pixels in model (belong in `BoardMapper` / renderer)
+- Chess rules in controller (belong in `RuleEngine` / `PieceRules`)
+- Real sleep in tests
+- `print board` depending on rendering (logical state only)
+- `RuleEngine` mutating `Board`
+- Active `Motion` objects inside `Board`
+- Live `Board`/`Piece` objects passed to `Renderer` (use `GameSnapshot`)
+- Second move while motion active (reject with `"motion_in_progress"`)
+- `BoardParser` hidden inside `texttests` (shared I/O adapter)
+- Game-over moves still mutating board (reject with `"game_over"`)

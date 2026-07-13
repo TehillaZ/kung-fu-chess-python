@@ -16,6 +16,29 @@ class Controller:
     def has_pending_move_from(self, position):
         return any(motion.start == position for motion in self.pending_motions)
 
+    def handle_jump(self, position):
+        if self._game_state.game_over or position is None:
+            return
+
+        row, col = position.as_tuple()
+
+        if self._board.is_empty(row, col):
+            return
+
+        if self.has_pending_move_from((row, col)):
+            return
+
+        piece = self._board.get_piece(row, col)
+        motion = self._arbiter.create_airborne_jump(
+            piece,
+            (row, col),
+            self._game_state.clock,
+            self.pending_motions,
+            self._move_order,
+        )
+        self.pending_motions.append(motion)
+        self._move_order += 1
+
     def handle_click(self, position):
         if self._game_state.game_over or position is None:
             return

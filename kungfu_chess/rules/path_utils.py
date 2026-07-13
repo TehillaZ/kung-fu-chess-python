@@ -7,12 +7,17 @@ def path_cells(start, end):
     col_step = 0 if end_col == start_col else (1 if end_col > start_col else -1)
 
     row, col = start_row, start_col
-    while True:
+    max_steps = abs(end_row - start_row) + abs(end_col - start_col) + 1
+
+    for _ in range(max_steps):
         cells.append((row, col))
         if (row, col) == (end_row, end_col):
             break
-        row += row_step
-        col += col_step
+
+        if row != end_row:
+            row += row_step
+        if col != end_col:
+            col += col_step
 
     return cells
 

@@ -41,6 +41,10 @@ class GameEngine:
         position = self._mapper.to_position(x, y)
         self._controller.handle_click(position)
 
+    def execute_jump(self, x, y):
+        position = self._mapper.to_position(x, y)
+        self._controller.handle_jump(position)
+
     def execute_wait(self, milliseconds):
         self._game_state.advance_clock(milliseconds)
         self._apply_completed_motions()

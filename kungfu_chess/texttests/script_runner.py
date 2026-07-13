@@ -22,6 +22,9 @@ class ScriptRunner:
             if command.startswith("click"):
                 _, x_str, y_str = command.split()
                 engine.execute_click(int(x_str), int(y_str))
+            elif command.startswith("jump"):
+                _, x_str, y_str = command.split()
+                engine.execute_jump(int(x_str), int(y_str))
             elif command.startswith("wait"):
                 _, ms_str = command.split()
                 engine.execute_wait(int(ms_str))
