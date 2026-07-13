@@ -2,10 +2,13 @@ import io
 import unittest
 from contextlib import redirect_stdout
 
-from validator import validatefunc
-from simulator import ChessGameSimulator
-from p_input import parse_input
+from kungfu_chess.engine.game_engine import ChessGameSimulator
+from kungfu_chess.io.board_parser import validate_board_input as validatefunc
+from kungfu_chess.texttests.script_runner import ScriptRunner
 
+
+def parse_input(raw_input):
+    return ScriptRunner().run(raw_input)
 
 class TestValidate(unittest.TestCase):
     def test_validate_accepts_valid_board(self):
@@ -72,6 +75,34 @@ class TestPawnMovement(unittest.TestCase):
         sim.execute_click(0, 200)
         sim.execute_click(0, 0)
         self.assertEqual(sim.board, [[".", "."], [".", "."], ["wP", "."], [".", "."]])
+
+    def test_pawn_can_move_two_cells_from_start_row(self):
+        sim = ChessGameSimulator(". .\n. .\n. .\nwP .")
+        sim.execute_click(0, 300)
+        sim.execute_click(0, 100)
+        sim.execute_wait(2000)
+        self.assertEqual(sim.board, [[".", "."], ["wP", "."], [".", "."], [".", "."]])
+
+    def test_pawn_two_cell_move_blocked_if_path_not_clear(self):
+        sim = ChessGameSimulator(". .\n. .\nwR .\nwP .")
+        sim.execute_click(0, 300)
+        sim.execute_click(0, 100)
+        sim.execute_wait(2000)
+        self.assertEqual(sim.board, [[".", "."], [".", "."], ["wR", "."], ["wP", "."]])
+
+    def test_white_pawn_promotes_to_queen_on_last_row(self):
+        sim = ChessGameSimulator(". .\nwP .")
+        sim.execute_click(0, 100)
+        sim.execute_click(0, 0)
+        sim.execute_wait(1000)
+        self.assertEqual(sim.board, [["wQ", "."], [".", "."]])
+
+    def test_black_pawn_promotes_to_queen_on_last_row(self):
+        sim = ChessGameSimulator("bP .\n. .")
+        sim.execute_click(0, 0)
+        sim.execute_click(0, 100)
+        sim.execute_wait(1000)
+        self.assertEqual(sim.board, [[".", "."], ["bQ", "."]])
 
     def test_pawn_cannot_capture_forward(self):
         sim = ChessGameSimulator("bR .\nwP .\n. .")
@@ -212,6 +243,44 @@ class TestAdvancedRealtimeInteraction(unittest.TestCase):
         self.assertEqual(sim.board, [[".", "wR", "bR"]])
         sim.execute_wait(1000)
         self.assertEqual(sim.board, [[".", "wR", "bR"]])
+
+
+class TestGameOver(unittest.TestCase):
+    def test_capturing_enemy_king_ends_game(self):
+        sim = ChessGameSimulator("wR bK")
+        sim.execute_click(0, 0)
+        sim.execute_click(100, 0)
+        sim.execute_wait(1000)
+        self.assertTrue(sim.game_over)
+        self.assertEqual(sim.board, [[".", "wR"]])
+
+    def test_moves_ignored_after_game_over(self):
+        sim = ChessGameSimulator("wR bK\nwN .")
+        sim.execute_click(0, 0)
+        sim.execute_click(100, 0)
+        sim.execute_wait(1000)
+        self.assertTrue(sim.game_over)
+        sim.execute_click(0, 100)
+        sim.execute_click(100, 100)
+        sim.execute_wait(1000)
+        self.assertEqual(sim.board, [[".", "wR"], ["wN", "."]])
+
+    def test_capture_king_ends_game_in_full_input(self):
+        input_data = """Board:
+wR bK
+. .
+Commands:
+click 0 0
+click 100 0
+wait 1000
+click 0 100
+click 100 100
+wait 1000
+print board"""
+        buffer = io.StringIO()
+        with redirect_stdout(buffer):
+            parse_input(input_data)
+        self.assertEqual(buffer.getvalue().strip(), ". wR\n. .")
 
 
 class TestMainProcess(unittest.TestCase):

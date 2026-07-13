@@ -1,10 +1,9 @@
-# rules.py
-
 import json
 import os
 
+
 class RulesLoader:
-    """Loads chess movement rules from the JSON configuration file."""
+    """Loads chess movement rules from JSON configuration."""
 
     def __init__(self):
         config_path = os.path.join(os.path.dirname(__file__), "rules.json")
@@ -16,5 +15,4 @@ class RulesLoader:
             self.rules = {}
 
     def get_rule(self, piece_type):
-        """Returns the rule of a specific piece."""
         return self.rules.get(piece_type)
