@@ -1,19 +1,18 @@
 from kungfu_chess.model.board import EMPTY_CELL
 from kungfu_chess.model.game_state import is_king_capture
+from kungfu_chess.model.piece import KIND_KNIGHT
+from kungfu_chess.realtime.arrival_events import ArrivalEvents
 from kungfu_chess.realtime.motion import Motion
-from kungfu_chess.rules.path_utils import (
-    column_range,
-    path_cells,
-    ranges_overlap,
-    row_range,
-)
+from kungfu_chess.rules.piece_rules import piece_color
 
 MS_PER_CELL = 1000
 MS_PER_JUMP = 1000
 
 
 def is_knight(piece):
-    return len(piece) == 2 and piece[1] == "N"
+    if hasattr(piece, "kind"):
+        return piece.kind == KIND_KNIGHT
+    return len(piece) == 2 and piece[1] == KIND_KNIGHT
 
 
 def travel_time(start, end, ms_per_cell=MS_PER_CELL, is_jump=False):
@@ -29,7 +28,7 @@ def travel_time(start, end, ms_per_cell=MS_PER_CELL, is_jump=False):
 def find_active_jump_at(cell, event_time, motions):
     for motion in motions:
         if (
-            motion.is_jump
+            motion.is_inplace_jump()
             and not motion.landing_cancelled
             and motion.start == cell
             and motion.departure_time <= event_time <= motion.arrival_time
@@ -39,85 +38,55 @@ def find_active_jump_at(cell, event_time, motions):
     return None
 
 
-def has_common_route(start1, end1, start2, end2):
-    column_range1 = column_range(start1, end1)
-    column_range2 = column_range(start2, end2)
-    if column_range1 and column_range2:
-        return ranges_overlap(column_range1, column_range2)
-
-    row_range1 = row_range(start1, end1)
-    row_range2 = row_range(start2, end2)
-    if row_range1 and row_range2:
-        return ranges_overlap(row_range1, row_range2)
-
-    return bool(set(path_cells(start1, end1)) & set(path_cells(start2, end2)))
-
-
 class RealTimeArbiter:
     """Advances simulated time and applies completed motions."""
 
     def __init__(self, ms_per_cell=MS_PER_CELL):
         self.ms_per_cell = ms_per_cell
+        self._pending_motions = []
+        self._move_order = 0
 
-    def compute_departure_time(self, clock, piece, start, end, pending_motions, is_jump=False):
-        departure_time = clock
-
-        for motion in pending_motions:
-            if motion.piece[0] == piece[0]:
-                continue
-
-            if not is_jump and not motion.is_jump:
-                if has_common_route(start, end, motion.start, motion.end):
-                    departure_time = max(departure_time, motion.arrival_time)
-
-            if motion.end == end:
-                if motion.is_jump and motion.start == motion.end:
-                    continue
-
-                departure_time = max(departure_time, motion.arrival_time)
-
-        return departure_time
-
-    def create_airborne_jump(self, piece, position, clock, pending_motions, order):
-        departure_time = self.compute_departure_time(
-            clock,
-            piece,
-            position,
-            position,
-            pending_motions,
-            is_jump=True,
+    def has_active_motion(self):
+        """True when a blocking (non in-place jump) motion is in progress."""
+        return any(
+            not motion.is_inplace_jump()
+            for motion in self._pending_motions
         )
 
-        return Motion(
-            piece,
-            position,
-            position,
-            departure_time,
-            departure_time + MS_PER_JUMP,
-            order,
-            is_jump=True,
-        )
+    @property
+    def pending_motions(self):
+        return list(self._pending_motions)
 
-    def create_motion(self, piece, start, end, clock, pending_motions, order):
-        is_jump = is_knight(piece)
-        departure_time = self.compute_departure_time(
-            clock,
+    def clear_pending_motions(self):
+        self._pending_motions = []
+
+    def _schedule_motion(self, piece, start, end, clock, is_jump=False):
+        move_time = travel_time(start, end, self.ms_per_cell, is_jump=is_jump)
+        motion = Motion(
             piece,
             start,
             end,
-            pending_motions,
-            is_jump,
-        )
-        move_time = travel_time(start, end, self.ms_per_cell, is_jump)
-
-        return Motion(
-            piece,
-            start,
-            end,
-            departure_time,
-            departure_time + move_time,
-            order,
+            clock,
+            clock + move_time,
+            self._move_order,
             is_jump=is_jump,
+            is_knight_move=is_jump and start != end and is_knight(piece),
+        )
+        self._pending_motions.append(motion)
+        self._move_order += 1
+        return motion
+
+    def start_motion(self, piece, start, end, clock):
+        is_jump = is_knight(piece)
+        return self._schedule_motion(piece, start, end, clock, is_jump=is_jump)
+
+    def start_jump(self, piece, position, clock):
+        return self._schedule_motion(
+            piece,
+            position,
+            position,
+            clock,
+            is_jump=True,
         )
 
     def can_apply_motion(self, motion, board, rule_engine):
@@ -126,7 +95,7 @@ class RealTimeArbiter:
         if piece == EMPTY_CELL or piece != motion.piece:
             return False
 
-        if motion.is_jump and motion.start == motion.end:
+        if motion.is_inplace_jump():
             return True
 
         return rule_engine.is_legal_move(
@@ -136,18 +105,21 @@ class RealTimeArbiter:
             board,
         )
 
-    def apply_completed_motions(self, board, pending_motions, clock, rule_engine):
+    def advance_time(self, board, clock, rule_engine):
+        return self.apply_completed_motions(board, clock, rule_engine)
+
+    def apply_completed_motions(self, board, clock, rule_engine):
         ready_motions = [
-            motion for motion in pending_motions
+            motion for motion in self._pending_motions
             if motion.arrival_time <= clock
         ]
         still_pending = [
-            motion for motion in pending_motions
+            motion for motion in self._pending_motions
             if motion.arrival_time > clock
         ]
 
         ready_motions.sort(
-            key=lambda motion: (motion.arrival_time, motion.is_jump, motion.order)
+            key=lambda motion: (motion.arrival_time, motion.is_inplace_jump(), motion.order)
         )
         applied_destinations = set()
         king_captured = False
@@ -162,33 +134,32 @@ class RealTimeArbiter:
             if not self.can_apply_motion(motion, board, rule_engine):
                 continue
 
-            if motion.is_jump and motion.landing_cancelled:
+            if motion.is_inplace_jump() and motion.landing_cancelled:
                 continue
 
-            if motion.is_jump and motion.start == motion.end:
+            if motion.is_inplace_jump():
                 continue
 
-            if not motion.is_jump:
-                active_jump = find_active_jump_at(
-                    destination,
-                    motion.arrival_time,
-                    tracked_motions,
-                )
-                if active_jump and active_jump.piece[0] != motion.piece[0]:
-                    start_row, start_col = motion.start
-                    board.set_piece(start_row, start_col, EMPTY_CELL)
-                    active_jump.landing_cancelled = True
-                    still_pending = [
-                        pending for pending in still_pending
-                        if pending.end != destination
-                    ]
+            active_jump = find_active_jump_at(
+                destination,
+                motion.arrival_time,
+                tracked_motions,
+            )
+            if active_jump and piece_color(active_jump.piece) != piece_color(motion.piece):
+                start_row, start_col = motion.start
+                board.set_piece(start_row, start_col, EMPTY_CELL)
+                active_jump.landing_cancelled = True
+                still_pending = [
+                    pending for pending in still_pending
+                    if pending.end != destination
+                ]
 
-                    if is_king_capture(motion.piece):
-                        king_captured = True
-                        still_pending = []
-                        break
+                if is_king_capture(motion.piece):
+                    king_captured = True
+                    still_pending = []
+                    break
 
-                    continue
+                continue
 
             captured_piece = board.get_piece(*destination)
             board.move_piece(motion.start, motion.end)
@@ -203,4 +174,5 @@ class RealTimeArbiter:
                 still_pending = []
                 break
 
-        return still_pending, king_captured
+        self._pending_motions = still_pending
+        return ArrivalEvents(king_captured=king_captured)

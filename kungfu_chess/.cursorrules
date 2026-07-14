@@ -172,8 +172,8 @@ kungfu_chess/
   engine/      game_engine.py
   input/       board_mapper.py, controller.py
   io/          board_parser.py, board_printer.py
-  view/        renderer.py, image_view.py
-  texttests/   script_parser.py, script_runner.py
+  view/        renderer.py
+  texttests/   script_runner.py
   app.py
 tests/unit/
 ```

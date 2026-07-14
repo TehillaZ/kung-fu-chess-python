@@ -18,6 +18,9 @@ class Position:
     def __hash__(self):
         return hash((self.row, self.col))
 
+    def __repr__(self):
+        return f"Position(row={self.row}, col={self.col})"
+
 
 def as_tuple(position):
     if isinstance(position, Position):

@@ -1,46 +1,26 @@
-from kungfu_chess.rules.piece_rules import is_friendly_piece
+from kungfu_chess.model.board import EMPTY_CELL
+from kungfu_chess.rules.piece_rules import piece_color
 
 
 class Controller:
-    """Handles click selection and move scheduling."""
+    """Handles click selection and delegates move requests to GameEngine."""
 
-    def __init__(self, board, rule_engine, arbiter, game_state):
+    def __init__(self, board, game_engine, game_state):
         self._board = board
-        self._rule_engine = rule_engine
-        self._arbiter = arbiter
+        self._game_engine = game_engine
         self._game_state = game_state
         self.selected_pos = None
-        self.pending_motions = []
-        self._move_order = 0
 
-    def has_pending_move_from(self, position):
-        return any(motion.start == position for motion in self.pending_motions)
-
-    def handle_jump(self, position):
-        if self._game_state.game_over or position is None:
-            return
-
-        row, col = position.as_tuple()
-
-        if self._board.is_empty(row, col):
-            return
-
-        if self.has_pending_move_from((row, col)):
-            return
-
-        piece = self._board.get_piece(row, col)
-        motion = self._arbiter.create_airborne_jump(
-            piece,
-            (row, col),
-            self._game_state.clock,
-            self.pending_motions,
-            self._move_order,
-        )
-        self.pending_motions.append(motion)
-        self._move_order += 1
+    def click(self, position):
+        self.handle_click(position)
 
     def handle_click(self, position):
-        if self._game_state.game_over or position is None:
+        if self._game_state.game_over:
+            return
+
+        if position is None:
+            if self.selected_pos is not None:
+                self.selected_pos = None
             return
 
         row, col = position.as_tuple()
@@ -50,36 +30,23 @@ class Controller:
                 self.selected_pos = (row, col)
             return
 
-        previous_position = self.selected_pos
-        piece = self._board.get_piece(*previous_position)
-        target_piece = self._board.get_piece(row, col)
+        source = self.selected_pos
+        if source != (row, col) and not self._board.is_empty(row, col):
+            selected_piece = self._board.get_piece(*source)
+            clicked_piece = self._board.get_piece(row, col)
+            if (
+                selected_piece != EMPTY_CELL
+                and clicked_piece != EMPTY_CELL
+                and piece_color(selected_piece) == piece_color(clicked_piece)
+            ):
+                self.selected_pos = (row, col)
+                return
 
-        if is_friendly_piece(piece, target_piece):
-            self.selected_pos = (row, col)
-            return
-
-        if self._rule_engine.is_legal_move(
-            piece,
-            previous_position,
-            (row, col),
-            self._board,
-        ):
-            if not self.has_pending_move_from(previous_position):
-                motion = self._arbiter.create_motion(
-                    piece,
-                    previous_position,
-                    (row, col),
-                    self._game_state.clock,
-                    self.pending_motions,
-                    self._move_order,
-                )
-                self.pending_motions.append(motion)
-                self._move_order += 1
-
+        self._game_engine.request_move(source, (row, col))
         self.selected_pos = None
+
+    def handle_jump(self, position):
+        self._game_engine.request_jump(position)
 
     def clear_selection(self):
         self.selected_pos = None
-
-    def clear_pending_motions(self):
-        self.pending_motions = []

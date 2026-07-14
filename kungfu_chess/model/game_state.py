@@ -1,4 +1,5 @@
 from kungfu_chess.model.board import EMPTY_CELL
+from kungfu_chess.model.piece import KIND_KING
 
 
 class GameState:
@@ -16,7 +17,9 @@ class GameState:
 
 
 def is_king(piece):
-    return len(piece) == 2 and piece[1] == "K"
+    if hasattr(piece, "kind"):
+        return piece.kind == KIND_KING
+    return len(piece) == 2 and piece[1] == KIND_KING
 
 
 def is_king_capture(target_piece):

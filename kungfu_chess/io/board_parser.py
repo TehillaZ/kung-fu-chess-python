@@ -1,8 +1,41 @@
-VALID_TOKENS = {
-    ".",
-    "wK", "wQ", "wR", "wB", "wN", "wP",
-    "bK", "bQ", "bR", "bB", "bN", "bP",
-}
+from kungfu_chess.model.board import EMPTY_CELL, Board
+from kungfu_chess.model.piece import all_piece_tokens
+from kungfu_chess.model.piece_factory import PieceFactory
+
+VALID_TOKENS = {EMPTY_CELL} | all_piece_tokens()
+
+
+class BoardParser:
+    """Parses textual board descriptions into Board objects."""
+
+    @classmethod
+    def parse(cls, board_string, cell_size=100):
+        rows = [
+            row.split()
+            for row in board_string.strip().split("\n")
+            if row.strip()
+        ]
+
+        if not rows:
+            raise ValueError("ERROR EMPTY_BOARD")
+
+        cols = len(rows[0])
+        board = Board(rows=len(rows), cols=cols, cell_size=cell_size)
+        factory = PieceFactory()
+
+        for row_index, row in enumerate(rows):
+            if len(row) != cols:
+                raise ValueError("ERROR ROW_WIDTH_MISMATCH")
+
+            for col_index, token in enumerate(row):
+                if token not in VALID_TOKENS:
+                    raise ValueError("ERROR UNKNOWN_TOKEN")
+
+                if token != EMPTY_CELL:
+                    piece = factory.create_from_token(token, row_index, col_index)
+                    board.add_piece(piece)
+
+        return board
 
 
 def validate_board_input(program_input):

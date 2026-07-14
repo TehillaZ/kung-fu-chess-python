@@ -21,13 +21,14 @@ class ScriptRunner:
         for command in command_lines:
             if command.startswith("click"):
                 _, x_str, y_str = command.split()
-                engine.execute_click(int(x_str), int(y_str))
+                position = engine._mapper.pixel_to_cell(int(x_str), int(y_str))
+                engine._controller.click(position)
             elif command.startswith("jump"):
                 _, x_str, y_str = command.split()
                 engine.execute_jump(int(x_str), int(y_str))
             elif command.startswith("wait"):
                 _, ms_str = command.split()
-                engine.execute_wait(int(ms_str))
+                engine.wait(int(ms_str))
             elif command == "print board":
                 self.printer.print_board(engine.board)
 
