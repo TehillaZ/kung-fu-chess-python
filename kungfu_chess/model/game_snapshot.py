@@ -1,4 +1,10 @@
-from kungfu_chess.model.piece import PIECE_STATE_IDLE, PIECE_STATE_MOVING
+from kungfu_chess.model.piece import (
+    PIECE_STATE_IDLE,
+    PIECE_STATE_MOVING,
+    SPRITE_STATE_IDLE,
+    SPRITE_STATE_JUMP,
+    SPRITE_STATE_MOVE,
+)
 
 
 class PieceSnapshot:
@@ -14,6 +20,8 @@ class PieceSnapshot:
         logical_row,
         logical_col,
         state,
+        sprite_state=SPRITE_STATE_IDLE,
+        animation_progress=0.0,
     ):
         self.piece_id = piece_id
         self.color = color
@@ -23,6 +31,8 @@ class PieceSnapshot:
         self.logical_row = logical_row
         self.logical_col = logical_col
         self.state = state
+        self.sprite_state = sprite_state
+        self.animation_progress = animation_progress
 
     def token(self):
         return f"{self.color}{self.kind}"
@@ -116,30 +126,63 @@ def interpolate_motion_pixel(motion, clock, cell_size):
     return pixel_x, pixel_y
 
 
+def motion_progress(motion, clock):
+    elapsed = max(0, clock - motion.departure_time)
+    duration = max(1, motion.arrival_time - motion.departure_time)
+    return min(1.0, elapsed / duration)
+
+
+def find_motion_for_piece(motions, piece_token, cell, clock):
+    for motion in motions:
+        if motion.piece != piece_token or motion.start != cell:
+            continue
+        if motion.departure_time <= clock <= motion.arrival_time:
+            return motion
+    return None
+
+
+def sprite_state_for_motion(motion, clock):
+    if motion.is_inplace_jump():
+        return SPRITE_STATE_JUMP
+
+    if motion.is_jump:
+        return SPRITE_STATE_JUMP
+
+    progress = motion_progress(motion, clock)
+    if progress < 1.0:
+        return SPRITE_STATE_MOVE
+
+    return SPRITE_STATE_IDLE
+
+
 def build_snapshot(board, game_state, controller, arbiter):
     cell_size = board.cell_size
-    active_motion = None
-
-    if arbiter.has_active_motion():
-        active_motion = arbiter.pending_motions[0]
+    pending_motions = arbiter.pending_motions
 
     pieces = []
     for piece in board.all_pieces():
         row, col = piece.cell.as_tuple()
         state = piece.state
         pixel_x, pixel_y = cell_center_pixel(row, col, cell_size)
+        sprite_state = SPRITE_STATE_IDLE
+        animation_progress = 0.0
 
-        if (
-            active_motion is not None
-            and active_motion.start == (row, col)
-            and active_motion.piece == piece.to_token()
-        ):
+        motion = find_motion_for_piece(
+            pending_motions,
+            piece.to_token(),
+            (row, col),
+            game_state.clock,
+        )
+        if motion is not None:
             state = PIECE_STATE_MOVING
-            pixel_x, pixel_y = interpolate_motion_pixel(
-                active_motion,
-                game_state.clock,
-                cell_size,
-            )
+            sprite_state = sprite_state_for_motion(motion, game_state.clock)
+            animation_progress = motion_progress(motion, game_state.clock)
+            if not motion.is_inplace_jump():
+                pixel_x, pixel_y = interpolate_motion_pixel(
+                    motion,
+                    game_state.clock,
+                    cell_size,
+                )
 
         pieces.append(
             PieceSnapshot(
@@ -151,6 +194,8 @@ def build_snapshot(board, game_state, controller, arbiter):
                 row,
                 col,
                 state,
+                sprite_state,
+                animation_progress,
             )
         )
 

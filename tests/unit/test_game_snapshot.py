@@ -8,7 +8,7 @@ from kungfu_chess.model.game_snapshot import (
     cell_center_pixel,
     interpolate_motion_pixel,
 )
-from kungfu_chess.model.piece import PIECE_STATE_IDLE, PIECE_STATE_MOVING
+from kungfu_chess.model.piece import PIECE_STATE_IDLE, PIECE_STATE_MOVING, SPRITE_STATE_MOVE
 from kungfu_chess.realtime.motion import Motion
 
 
@@ -58,6 +58,8 @@ class TestGameSnapshot(unittest.TestCase):
         moving = snapshot.pieces[0]
 
         self.assertEqual(moving.state, PIECE_STATE_MOVING)
+        self.assertEqual(moving.sprite_state, SPRITE_STATE_MOVE)
+        self.assertAlmostEqual(moving.animation_progress, 0.5)
         self.assertEqual((moving.logical_row, moving.logical_col), (0, 0))
         self.assertEqual((moving.pixel_x, moving.pixel_y), (100, 50))
 
