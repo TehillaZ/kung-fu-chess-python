@@ -28,6 +28,19 @@ py UI/main.py
 py main.py < your_script.txt
 ```
 
+## Run the multiplayer server
+
+```bash
+pip install -r server/requirements.txt
+py server/app.py
+```
+
+Clients connect over WebSocket to `ws://localhost:8765/room/<room_id>`. The
+first two connections into a room are assigned white/black; everyone after
+that is a read-only viewer. A room's clock pauses whenever a seat is empty
+and resumes once both are filled again. Game/participant/move history is
+recorded to `kfchess.db` (SQLite) at the project root.
+
 ## Tests
 
 ```bash
@@ -38,8 +51,10 @@ py -m unittest discover -s tests -p "test_*.py" -v
 
 | Path | Purpose |
 |------|---------|
-| `kungfu_chess/` | Engine, model, rules |
+| `kungfu_chess/` | Engine, model, rules, persistence |
 | `UI/` | OpenCV renderer and sprites |
+| `server/` | WebSocket multiplayer server (rooms, roles, protocol) |
 | `assets/` | Board and piece images (`pieces1`) |
 | `tests/` | Unit and integration tests |
 | `main.py` | Text / DSL entry point |
+| `board.csv` | Standard starting position, shared by `UI/main.py` and `server/app.py` |

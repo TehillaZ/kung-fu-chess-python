@@ -16,23 +16,15 @@ sys.path.insert(0, str(PROJECT_ROOT))
 sys.path.insert(0, str(UI_DIR))
 
 from kungfu_chess.engine.game_engine import GameEngine
+from kungfu_chess.io.board_csv import load_board_csv
 from renderer import Renderer
 
 # Standard chess start: black at top (row 0), white at bottom — matches pawn rules.
-DEFAULT_BOARD = "\n".join(
-    [
-        "bR bN bB bQ bK bB bN bR",
-        "bP bP bP bP bP bP bP bP",
-        ". . . . . . . .",
-        ". . . . . . . .",
-        ". . . . . . . .",
-        ". . . . . . . .",
-        "wP wP wP wP wP wP wP wP",
-        "wR wN wB wQ wK wB wN wR",
-    ]
-)
+BOARD_CSV_PATH = PROJECT_ROOT / "board.csv"
 WINDOW_NAME = "Kung Fu Chess"
 TICK_MS = 50
+
+DEFAULT_BOARD = load_board_csv(BOARD_CSV_PATH)
 
 
 def on_mouse(event, x, y, flags, state):
