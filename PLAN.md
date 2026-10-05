@@ -310,12 +310,12 @@ Each step follows: **requirement → failing tests → implementation → refact
 1. Split `tests/unit/test_kfchess.py` into per-component files listed in spec §5.
 2. Remove dead code: root duplicates, unused shims, `__pycache__` from VCS.
 3. Refactor large classes if any exceed reasonable size.
-4. Update `Architacture.md` to match final design.
+4. Update `Architecture.md` to match final design.
 5. Final regression: all unit + integration tests green.
 
 **Done when:** Test layout matches spec; documentation current.
 
-**Status:** Complete — `test_kfchess.py` split into `test_script_runner.py`, `test_game_engine_integration.py`, `test_pawn_movement.py`, `test_knight_movement.py`; validation tests merged into `test_board_parser.py`; `ChessGameSimulator` shim removed; dead stubs (`script_parser.py`, `image_view.py`) deleted; `Architacture.md` updated. **132** total tests passing.
+**Status:** Complete — `test_kfchess.py` split into `test_script_runner.py`, `test_game_engine_integration.py`, `test_pawn_movement.py`, `test_knight_movement.py`; validation tests merged into `test_board_parser.py`; `ChessGameSimulator` shim removed; dead stubs (`script_parser.py`, `image_view.py`) deleted; `Architecture.md` updated. **132** total tests passing.
 
 ---
 
